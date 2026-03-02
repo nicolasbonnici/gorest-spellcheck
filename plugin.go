@@ -2,16 +2,13 @@ package spellcheck
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/nicolasbonnici/gorest/database"
 	"github.com/nicolasbonnici/gorest/logger"
 	"github.com/nicolasbonnici/gorest/plugin"
 )
 
 type SpellcheckPlugin struct {
 	config  Config
-	db      database.Database
 	handler *Handler
-	repo    Repository
 }
 
 func NewPlugin() plugin.Plugin {
@@ -25,32 +22,44 @@ func (p *SpellcheckPlugin) Name() string {
 func (p *SpellcheckPlugin) Initialize(config map[string]interface{}) error {
 	p.config = DefaultConfig()
 
-	if db, ok := config["database"].(database.Database); ok {
-		p.db = db
-	}
-
+	// Extract config values from map
 	if enabled, ok := config["enabled"].(bool); ok {
 		p.config.Enabled = enabled
 	}
 
-	if maxItems, ok := config["max_items"].(int); ok {
-		p.config.MaxItems = maxItems
+	if defaultLang, ok := config["default_language"].(string); ok {
+		p.config.DefaultLanguage = defaultLang
 	}
 
+	if maxTextLen, ok := config["max_text_length"].(int); ok {
+		p.config.MaxTextLength = maxTextLen
+	}
+
+	if maxSuggestions, ok := config["max_suggestions"].(int); ok {
+		p.config.MaxSuggestions = maxSuggestions
+	}
+
+	if minWordLen, ok := config["min_word_length"].(int); ok {
+		p.config.MinWordLength = minWordLen
+	}
+
+	if caseSensitive, ok := config["case_sensitive"].(bool); ok {
+		p.config.CaseSensitive = caseSensitive
+	}
+
+	// Validate configuration
 	if err := p.config.Validate(); err != nil {
 		logger.Log.Error("Invalid spellcheck plugin configuration", "error", err)
 		return err
 	}
 
-	if p.db != nil {
-		p.repo = NewRepository(p.db)
-		p.handler = NewHandler(p.repo, &p.config)
-		logger.Log.Info("Spellcheck plugin database initialized")
-	} else {
-		logger.Log.Warn("Spellcheck plugin initialized without database - endpoints will not be available")
-	}
+	// Initialize handler
+	p.handler = NewHandler(&p.config)
 
-	logger.Log.Info("Spellcheck plugin initialized successfully", "enabled", p.config.Enabled)
+	logger.Log.Info("Spellcheck plugin initialized successfully",
+		"enabled", p.config.Enabled,
+		"default_language", p.config.DefaultLanguage,
+		"max_text_length", p.config.MaxTextLength)
 	return nil
 }
 
@@ -68,11 +77,8 @@ func (p *SpellcheckPlugin) SetupEndpoints(app *fiber.App) error {
 
 	api := app.Group("/api/spellcheck")
 
-	api.Post("/", p.handler.Create)
-	api.Get("/:id", p.handler.GetByID)
-	api.Get("/", p.handler.List)
-	api.Put("/:id", p.handler.Update)
-	api.Delete("/:id", p.handler.Delete)
+	// POST /api/spellcheck - On-demand spell check
+	api.Post("/", p.handler.Check)
 
 	logger.Log.Info("Spellcheck plugin endpoints registered", "prefix", "/api/spellcheck")
 	return nil
