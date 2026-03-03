@@ -7,8 +7,9 @@ import (
 )
 
 type SpellcheckPlugin struct {
-	config  Config
-	handler *Handler
+	config     Config
+	handler    *Handler
+	middleware *Middleware
 }
 
 func NewPlugin() plugin.Plugin {
@@ -63,6 +64,14 @@ func (p *SpellcheckPlugin) Initialize(config map[string]interface{}) error {
 	// Initialize handler
 	p.handler = NewHandler(&p.config, spellchecker)
 
+	// Initialize middleware
+	middleware, err := NewMiddleware(&p.config, spellchecker)
+	if err != nil {
+		logger.Log.Error("Failed to initialize middleware", "error", err)
+		return err
+	}
+	p.middleware = middleware
+
 	logger.Log.Info("Spellcheck plugin initialized successfully",
 		"enabled", p.config.Enabled,
 		"default_language", p.config.DefaultLanguage,
@@ -71,6 +80,12 @@ func (p *SpellcheckPlugin) Initialize(config map[string]interface{}) error {
 }
 
 func (p *SpellcheckPlugin) Handler() fiber.Handler {
+	// If middleware is enabled and initialized, return the validator
+	if p.config.Enabled && p.middleware != nil {
+		return p.middleware.Validate()
+	}
+
+	// Otherwise, pass through
 	return func(c *fiber.Ctx) error {
 		return c.Next()
 	}
