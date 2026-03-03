@@ -2,44 +2,32 @@
 
 [![CI](https://github.com/nicolasbonnici/gorest-spellcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/nicolasbonnici/gorest-spellcheck/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nicolasbonnici/gorest-spellcheck)](https://goreportcard.com/report/github.com/nicolasbonnici/gorest-spellcheck)
+[![Coverage](https://img.shields.io/badge/coverage-82.6%25-brightgreen)](https://github.com/nicolasbonnici/gorest-spellcheck)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**A comprehensive boilerplate/spellcheck plugin for the GoREST framework - your starting point for building new plugins.**
-
-This plugin serves as a reference implementation and template for creating GoREST plugins. It includes all the common patterns, structures, and best practices used across the GoREST plugin ecosystem.
-
-## Purpose
-
-This spellcheck plugin is designed to:
-
-1. **Provide a starting template** - Clone and customize this to create your own plugin
-2. **Demonstrate best practices** - Shows proper structure, patterns, and conventions
-3. **Serve as documentation** - Complete example of all plugin features
-4. **Ensure consistency** - Maintains the same patterns across all GoREST plugins
+Automatic spelling validation middleware and on-demand spell checking for GoREST applications.
 
 ## Features
 
-This spellcheck includes examples of:
+- **Automatic Middleware Validation** - Validates request bodies for spelling errors before they reach your handlers
+- **On-Demand Spell Checking** - HTTP endpoint for explicit spell checking with detailed error reports
+- **Struct Tag Annotations** - Use `spellcheck:"true"` tags to mark fields for validation
+- **Pure Go Implementation** - Uses `github.com/sajari/fuzzy` library (no external dependencies)
+- **Configurable** - Customize ignored words, max text length, suggestions, and more
+- **Built-in Dictionary** - 500+ common English words including tech terms (API, JSON, HTTP, etc.)
+- **Custom Dictionaries** - Load your own dictionary files
+- **Thread-Safe** - Caches struct metadata for optimal performance
+- **Comprehensive Testing** - 82.6% test coverage with integration tests
 
-- **Complete CRUD operations** - Create, Read, Update, Delete handlers
-- **Database integration** - Repository pattern with database operations
-- **Configuration management** - Config struct with validation
-- **Request/Response models** - Proper data structures and validation
-- **Error handling** - Consistent error responses
-- **Logging** - Structured logging throughout
-- **User authentication** - Integration with auth plugin patterns
-- **Database migrations** - SQL migration files
-- **Testing** - Unit test examples
-- **CI/CD** - GitHub Actions workflow
-- **Documentation** - Complete README and development guide
-
-## Quick Start
-
-### For Using This Plugin
+## Installation
 
 ```bash
 go get github.com/nicolasbonnici/gorest-spellcheck
 ```
+
+## Quick Start
+
+### With GoREST Framework
 
 ```go
 package main
@@ -47,340 +35,319 @@ package main
 import (
 	"github.com/nicolasbonnici/gorest"
 	"github.com/nicolasbonnici/gorest/pluginloader"
-
-	spellcheckplugin "github.com/nicolasbonnici/gorest-spellcheck"
+	spellcheck "github.com/nicolasbonnici/gorest-spellcheck"
 )
 
 func init() {
-	pluginloader.RegisterPluginFactory("spellcheck", spellcheckplugin.NewPlugin)
+	pluginloader.RegisterPluginFactory("spellcheck", spellcheck.NewPlugin)
 }
 
 func main() {
-	cfg := gorest.Config{
+	gorest.Start(gorest.Config{
 		ConfigPath: ".",
-	}
-
-	gorest.Start(cfg)
+	})
 }
 ```
 
-### For Creating Your Own Plugin
+### Standalone Usage
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed instructions on forking and customizing this spellcheck.
+```go
+package main
 
-**Quick steps:**
+import (
+	"log"
 
-1. Fork/clone this repository
-2. Replace "spellcheck" with your plugin name throughout
-3. Customize the data model, handlers, and business logic
-4. Update documentation
-5. Run tests and push!
+	"github.com/gofiber/fiber/v2"
+	spellcheck "github.com/nicolasbonnici/gorest-spellcheck"
+)
 
-## Development Environment
+func main() {
+	app := fiber.New()
 
-To set up your development environment:
+	// Initialize plugin
+	plugin := spellcheck.NewPlugin()
+	config := map[string]interface{}{
+		"enabled":          true,
+		"default_language": "en",
+		"max_text_length":  10000,
+	}
 
-```bash
-make install
+	if err := plugin.Initialize(config); err != nil {
+		log.Fatal(err)
+	}
+
+	// Apply middleware
+	app.Use(plugin.Handler())
+
+	// Setup spellcheck endpoint
+	spellcheckPlugin := plugin.(*spellcheck.SpellcheckPlugin)
+	spellcheckPlugin.SetupEndpoints(app)
+
+	// Your routes here
+	app.Post("/articles", createArticle)
+
+	app.Listen(":3000")
+}
 ```
-
-This will:
-- Install Go dependencies
-- Install development tools (golangci-lint)
-- Set up git hooks (pre-commit linting and tests)
 
 ## Configuration
 
 Add to your `gorest.yaml`:
 
 ```yaml
-database:
-  url: "${DATABASE_URL}"
-
 plugins:
   - name: spellcheck
     enabled: true
     config:
-      max_items: 100  # Maximum items per query (default: 100)
+      default_language: "en"
+      max_text_length: 10000      # Maximum text length to check
+      max_suggestions: 5           # Max suggestions per error
+      min_word_length: 2           # Minimum word length to check
+      case_sensitive: false        # Case-sensitive checking
+      ignored_words:               # Custom words to ignore
+        - "API"
+        - "JSON"
+        - "HTTP"
+        - "UUID"
+      custom_dictionary: "/path/to/dictionary.txt"  # Optional custom dictionary
 ```
 
 ### Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `enabled` | bool | `true` | Enable/disable the plugin |
-| `max_items` | int | `100` | Maximum number of items returned per list query (1-1000) |
+| Option | Type | Default | Range | Description |
+|--------|------|---------|-------|-------------|
+| `enabled` | bool | `true` | - | Enable/disable the plugin |
+| `default_language` | string | `"en"` | - | Default language for spell checking |
+| `supported_languages` | []string | `["en"]` | - | List of supported languages |
+| `max_text_length` | int | `10000` | 1-1,000,000 | Maximum text length to validate |
+| `max_suggestions` | int | `5` | 1-20 | Maximum suggestions per error |
+| `min_word_length` | int | `2` | 1-10 | Minimum word length to check |
+| `case_sensitive` | bool | `false` | - | Enable case-sensitive checking |
+| `ignored_words` | []string | `[]` | - | Words to always treat as correct |
+| `custom_dictionary` | string | `""` | - | Path to custom dictionary file |
 
-## Database Setup
+## Usage
 
-Run the migration to create the required table:
+### 1. Automatic Middleware Validation
+
+The middleware automatically validates POST/PUT/PATCH requests with JSON bodies:
+
+```go
+type Article struct {
+	Title   string `json:"title" spellcheck:"true"`
+	Content string `json:"content" spellcheck:"true"`
+	Author  string `json:"author"` // Not checked
+}
+```
+
+**Request with spelling errors:**
 
 ```bash
-# Automatic migration (if migrations.auto_migrate: true in config)
-go run main.go
+POST /api/articles
+Content-Type: application/json
 
-# Or manually
-gorest migrate up
+{
+  "title": "Teh quik brown fox",
+  "content": "This has speling erors"
+}
 ```
 
-The plugin creates a `spellcheck_items` table with:
+**Response (400 Bad Request):**
 
-```sql
-CREATE TABLE spellcheck_items (
-    id UUID PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    user_id UUID NOT NULL,
-    active BOOLEAN DEFAULT true,
-    created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ
-);
+```json
+{
+  "error": "Spelling errors found",
+  "errors": [
+    {
+      "field": "title",
+      "word": "Teh",
+      "position": 0,
+      "suggestions": ["The", "Tea", "Ten"]
+    },
+    {
+      "field": "title",
+      "word": "quik",
+      "position": 4,
+      "suggestions": ["quick", "quit", "quiz"]
+    },
+    {
+      "field": "content",
+      "word": "speling",
+      "position": 9,
+      "suggestions": ["spelling", "spieling"]
+    },
+    {
+      "field": "content",
+      "word": "erors",
+      "position": 17,
+      "suggestions": ["errors", "eros"]
+    }
+  ]
+}
 ```
 
-## API Endpoints
+### 2. On-Demand Spell Checking
 
-All endpoints require authentication (JWT token in `Authorization` header).
-
-### Create Item
+Use the `/api/spellcheck` endpoint for explicit validation:
 
 ```bash
 POST /api/spellcheck
 Content-Type: application/json
-Authorization: Bearer <token>
 
 {
-  "name": "My Item",
-  "description": "Item description",
-  "active": true
+  "text": "Teh quik brown fox jumps over the lazy dog",
+  "language": "en",
+  "context": ["API", "JSON"],
+  "options": {
+    "case_sensitive": false,
+    "max_suggestions": 3
+  }
 }
 ```
 
-**Response (201 Created):**
+**Response (400 Bad Request):**
 
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "My Item",
-  "description": "Item description",
-  "user_id": "750e8400-e29b-41d4-a716-446655440000",
-  "active": true,
-  "created_at": "2025-12-31T10:00:00Z"
-}
-```
-
-### Get Item by ID
-
-```bash
-GET /api/spellcheck/:id
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "My Item",
-  "description": "Item description",
-  "user_id": "750e8400-e29b-41d4-a716-446655440000",
-  "active": true,
-  "created_at": "2025-12-31T10:00:00Z",
-  "updated_at": "2025-12-31T11:00:00Z"
-}
-```
-
-### List Items
-
-```bash
-GET /api/spellcheck?limit=20&offset=0
-Authorization: Bearer <token>
-```
-
-**Query Parameters:**
-
-- `limit` - Number of items to return (default: 20, max: configured max_items)
-- `offset` - Number of items to skip (default: 0)
-
-**Response (200 OK):**
-
-```json
-{
-  "items": [
+  "valid": false,
+  "errors": [
     {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "My Item",
-      "description": "Item description",
-      "user_id": "750e8400-e29b-41d4-a716-446655440000",
-      "active": true,
-      "created_at": "2025-12-31T10:00:00Z"
+      "word": "Teh",
+      "position": 0,
+      "suggestions": ["The", "Tea", "Ten"]
+    },
+    {
+      "word": "quik",
+      "position": 4,
+      "suggestions": ["quick", "quit", "quiz"]
     }
   ],
-  "total": 1,
-  "limit": 20,
-  "offset": 0
+  "suggestions": {
+    "Teh": ["The", "Tea", "Ten"],
+    "quik": ["quick", "quit", "quiz"]
+  },
+  "text": "Teh quik brown fox jumps over the lazy dog"
 }
 ```
 
-### Update Item
-
-```bash
-PUT /api/spellcheck/:id
-Content-Type: application/json
-Authorization: Bearer <token>
-
-{
-  "name": "Updated Name",
-  "description": "Updated description",
-  "active": false
-}
-```
-
-All fields are optional. Only provided fields will be updated.
-
-**Response (200 OK):** Returns the updated item.
-
-### Delete Item
-
-```bash
-DELETE /api/spellcheck/:id
-Authorization: Bearer <token>
-```
-
-**Response (204 No Content)**
-
-## Project Structure
-
-```
-gorest-spellcheck/
-├── plugin.go              # Main plugin implementation
-├── config.go              # Configuration structure and validation
-├── handlers.go            # HTTP request handlers (CRUD operations)
-├── models.go              # Data models and request/response structures
-├── repository.go          # Database operations (repository pattern)
-├── go.mod                 # Go module definition
-├── go.sum                 # Go module checksums
-├── README.md              # This file
-├── DEVELOPMENT.md         # Guide for creating plugins from this spellcheck
-├── LICENSE                # MIT License
-├── Makefile               # Development commands
-├── .gitignore             # Git ignore patterns
-├── .github/
-│   └── workflows/
-│       └── ci.yml         # GitHub Actions CI/CD pipeline
-├── migrations/
-│   └── 001_create_spellcheck_items.sql  # Database migration
-├── examples/
-│   └── basic/
-│       ├── main.go        # Example application
-│       ├── go.mod         # Example dependencies
-│       ├── gorest.yaml    # Example configuration
-│       └── README.md      # Example documentation
-└── tests/
-    ├── plugin_test.go     # Plugin tests
-    ├── handlers_test.go   # Handler tests
-    ├── config_test.go     # Config tests
-    └── repository_test.go # Repository tests
-```
-
-## Architecture Patterns
-
-This spellcheck demonstrates the following architectural patterns used across GoREST plugins:
-
-### 1. Plugin Interface Implementation
-
-```go
-type SpellcheckPlugin struct {
-    config  Config
-    db      database.Database
-    handler *Handler
-    repo    Repository
-}
-
-func NewPlugin() plugin.Plugin {
-    return &SpellcheckPlugin{}
-}
-
-func (p *SpellcheckPlugin) Name() string
-func (p *SpellcheckPlugin) Initialize(config map[string]interface{}) error
-func (p *SpellcheckPlugin) Handler() fiber.Handler
-func (p *SpellcheckPlugin) SetupEndpoints(app *fiber.App) error
-```
-
-### 2. Repository Pattern
-
-Separates database logic from business logic:
-
-```go
-type Repository interface {
-    Create(ctx context.Context, item *Item) error
-    GetByID(ctx context.Context, id uuid.UUID) (*Item, error)
-    List(ctx context.Context, userID uuid.UUID, limit, offset int) ([]Item, int, error)
-    Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, updates map[string]interface{}) error
-    Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
-}
-```
-
-### 3. Handler Pattern
-
-HTTP handlers with proper error handling and validation:
-
-```go
-type Handler struct {
-    repo   Repository
-    config *Config
-}
-
-func (h *Handler) Create(c *fiber.Ctx) error
-func (h *Handler) GetByID(c *fiber.Ctx) error
-func (h *Handler) List(c *fiber.Ctx) error
-func (h *Handler) Update(c *fiber.Ctx) error
-func (h *Handler) Delete(c *fiber.Ctx) error
-```
-
-### 4. Configuration Management
-
-Type-safe configuration with validation:
-
-```go
-type Config struct {
-    Database database.Database
-    Enabled  bool
-    MaxItems int
-}
-
-func (c *Config) Validate() error
-func DefaultConfig() Config
-```
-
-## Security Features
-
-This spellcheck includes examples of:
-
-- **Authentication checks** - Validates user from JWT token
-- **User ownership** - Users can only access their own items
-- **Input validation** - Validates all request inputs
-- **SQL injection prevention** - Uses parameterized queries
-- **Error message safety** - Doesn't leak sensitive information
-
-## Error Handling
-
-Standard HTTP status codes:
-
-| Status | Meaning |
-|--------|---------|
-| `200` | Success (GET, PUT) |
-| `201` | Created (POST) |
-| `204` | No Content (DELETE) |
-| `400` | Bad Request (validation error) |
-| `401` | Unauthorized (missing/invalid auth) |
-| `404` | Not Found |
-| `500` | Internal Server Error |
-
-**Error Response Format:**
+**Response with correct spelling (200 OK):**
 
 ```json
 {
-  "error": "Error message here"
+  "valid": true,
+  "errors": [],
+  "text": "The quick brown fox jumps over the lazy dog"
+}
+```
+
+### 3. Manual Struct Validation
+
+```go
+middleware, _ := spellcheck.NewMiddleware(&config, spellchecker)
+
+article := &Article{
+	Title:   "Teh test",
+	Content: "This has erors",
+}
+
+errors, err := middleware.ValidateStruct(article)
+if err != nil {
+	log.Fatal(err)
+}
+
+if errors.HasErrors() {
+	for _, e := range errors.Errors {
+		fmt.Printf("Field %s: '%s' at position %d, suggestions: %v\n",
+			e.Field, e.Word, e.Position, e.Suggestions)
+	}
+}
+```
+
+## Field Checking Behavior
+
+### With Struct Tags
+
+When using `ValidateStruct()`, only fields marked with `spellcheck:"true"` are validated:
+
+```go
+type Article struct {
+	Title   string `json:"title" spellcheck:"true"`   // ✓ Checked
+	Content string `json:"content" spellcheck:"true"` // ✓ Checked
+	Slug    string `json:"slug"`                      // ✗ Not checked
+}
+```
+
+### With Middleware (JSON Requests)
+
+The middleware uses a heuristic based on common field names:
+
+**Checked fields:** `title`, `content`, `description`, `body`, `text`, `message`, `comment`, `note`, `summary`, `excerpt`, `caption`, `bio`, `about`
+
+**Not checked:** `id`, `slug`, `email`, `password`, `username`, etc.
+
+```json
+{
+  "title": "Test article",    // ✓ Checked
+  "content": "Body text",      // ✓ Checked
+  "slug": "test-article",      // ✗ Not checked
+  "email": "user@example.com"  // ✗ Not checked
+}
+```
+
+## Custom Dictionary
+
+Create a text file with one word per line:
+
+```text
+# Custom dictionary
+customword
+techterm
+brandname
+```
+
+Configure in `gorest.yaml`:
+
+```yaml
+plugins:
+  - name: spellcheck
+    config:
+      custom_dictionary: "./custom-words.txt"
+```
+
+## Error Types
+
+The plugin provides detailed error types:
+
+```go
+// SpellingError - Single word error
+type SpellingError struct {
+	Field       string   // Field name (empty for on-demand checks)
+	Word        string   // Misspelled word
+	Position    int      // Character position in text
+	Suggestions []string // Correction suggestions
+}
+
+// SpellingErrors - Collection of errors
+type SpellingErrors struct {
+	Errors []*SpellingError
+}
+
+// TextTooLongError - Text exceeds max length
+type TextTooLongError struct {
+	Length    int
+	MaxLength int
+}
+
+// UnsupportedLanguageError - Language not supported
+type UnsupportedLanguageError struct {
+	Language           string
+	SupportedLanguages []string
+}
+
+// ValidationError - Request validation failed
+type ValidationError struct {
+	Message string
+	Fields  map[string]string
 }
 ```
 
@@ -388,25 +355,22 @@ Standard HTTP status codes:
 
 ### Prerequisites
 
-- Go 1.25.1 or later
-- PostgreSQL (or compatible database)
-- Make (optional, for using Makefile)
+- Go 1.23+ or later
+- Make (optional)
 
 ### Setup
 
 ```bash
-# Clone the repository
+# Clone and install dependencies
 git clone https://github.com/nicolasbonnici/gorest-spellcheck.git
 cd gorest-spellcheck
-
-# Install dependencies
-go mod download
-
-# Install development tools
-make install
+make install  # Installs golangci-lint and git hooks
 
 # Run tests
 make test
+
+# Run tests with coverage
+make test-coverage
 
 # Run linter
 make lint
@@ -415,187 +379,101 @@ make lint
 ### Available Make Targets
 
 ```bash
-make help       # Show all available targets
-make install    # Install development tools (golangci-lint)
-make test       # Run tests with coverage
-make lint       # Run linter
-make lint-fix   # Run linter with auto-fix
-make build      # Build verification
-make clean      # Clean build artifacts and caches
+make install        # Install development tools and git hooks
+make test           # Run tests with race detector
+make test-coverage  # Generate HTML coverage report
+make lint           # Run linter
+make lint-fix       # Run linter with auto-fix
+make build          # Verify build
+make audit          # Run all quality checks
+make clean          # Clean artifacts
+make all            # Run lint, test, and build
 ```
 
-## Testing
-
-### Unit Tests
+### Running Tests
 
 ```bash
-# Run all tests
+# All tests
 go test -v ./...
 
-# Run with coverage
-go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+# Specific test
+go test -v -run TestSpellchecker_Check
 
-# View coverage report
+# With coverage
+go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 go tool cover -html=coverage.out
 
-# Or use Make
-make test
-make test-coverage  # Generates HTML coverage report
+# Integration tests
+go test -v -run TestPluginIntegration
 ```
 
-### Integration Tests
+## Architecture
 
-Integration tests run against real databases and are tagged with `//go:build integration`.
-
-**Prerequisites:**
-- PostgreSQL or MySQL running locally
-- Test database created
-- Environment variables set:
-  - `POSTGRES_URL` (e.g., `postgres://test:test@localhost:5432/test?sslmode=disable`)
-  - `MYSQL_URL` (e.g., `test:test@tcp(localhost:3306)/test`)
-
-**Running integration tests:**
-
-```bash
-# Run integration tests only
-go test -v -race -tags=integration ./...
-
-# Run with specific database
-POSTGRES_URL="postgres://test:test@localhost:5432/test?sslmode=disable" \
-  go test -v -race -tags=integration ./...
+```
+gorest-spellcheck/
+├── plugin.go              # Plugin interface implementation
+├── config.go              # Configuration with validation
+├── models.go              # Request/Response structs
+├── errors.go              # Custom error types
+├── spellchecker.go        # Core spell checking logic
+├── tag_parser.go          # Struct tag parsing with caching
+├── middleware.go          # Automatic validation middleware
+├── handlers.go            # HTTP endpoint handler
+├── *_test.go              # Unit tests (82.6% coverage)
+└── examples/              # Usage examples
 ```
 
-**CI/CD:**
+### Key Components
 
-Integration tests run automatically in GitHub Actions using PostgreSQL and MySQL service containers.
+- **Spellchecker** - Core logic using `github.com/sajari/fuzzy`
+- **TagParser** - Thread-safe reflection-based tag parsing with caching
+- **Middleware** - Fiber middleware for automatic validation
+- **Handler** - HTTP endpoint for on-demand checking
+- **Plugin** - GoREST plugin interface implementation
 
-## Integration with Other Plugins
+## Performance Considerations
 
-This plugin works seamlessly with other GoREST plugins, particularly:
+- **Tag Parsing Caching** - Struct metadata is parsed once and cached per type
+- **Concurrent Access** - Uses `sync.Map` for thread-safe caching
+- **Dictionary Loading** - Dictionary loaded once at initialization
+- **Request Filtering** - Only validates POST/PUT/PATCH with JSON content
+- **Fast Word Matching** - Uses Levenshtein distance with configurable depth
 
-### With Auth Plugin
+## Security
 
-```go
-import (
-    authplugin "github.com/nicolasbonnici/gorest-auth"
-    spellcheckplugin "github.com/nicolasbonnici/gorest-spellcheck"
-)
-
-func init() {
-    pluginloader.RegisterPluginFactory("auth", authplugin.NewPlugin)
-    pluginloader.RegisterPluginFactory("spellcheck", spellcheckplugin.NewPlugin)
-}
-```
-
-The spellcheck plugin automatically uses user authentication from the auth plugin.
-
-## Examples
-
-See the [examples/basic](examples/basic) directory for a complete working example.
-
-```bash
-cd examples/basic
-cp .env.example .env
-# Edit .env with your database URL and JWT secret
-go run main.go
-```
-
-## Creating Your Own Plugin
-
-This spellcheck is designed to be forked and customized. See [DEVELOPMENT.md](DEVELOPMENT.md) for a complete guide on:
-
-1. Forking and renaming the plugin
-2. Customizing the data model
-3. Implementing your business logic
-4. Adding custom endpoints
-5. Writing tests
-6. Publishing your plugin
+- **Text Length Limits** - Prevents resource exhaustion with max_text_length
+- **Input Sanitization** - Skips numbers and special characters
+- **No Sensitive Data** - Never logs or exposes checked text content
+- **Configurable Validation** - Can be disabled per environment
 
 ## Contributing
 
-Contributions to improve this spellcheck are welcome! Please:
+Contributions are welcome! Please:
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes with tests
-4. Ensure CI passes
-5. Submit a pull request
-
-## Common Use Cases
-
-This spellcheck can be adapted for various plugin types:
-
-- **Resource plugins** - Manage custom data entities (posts, products, etc.)
-- **Service plugins** - Provide specific services (email, notifications, etc.)
-- **Integration plugins** - Connect to external APIs (payment, social media, etc.)
-- **Utility plugins** - Add utility features (search, analytics, etc.)
-
-## FAQ
-
-**Q: Can I use this spellcheck for commercial projects?**
-A: Yes! It's MIT licensed.
-
-**Q: Do I need to keep the spellcheck branding?**
-A: No, customize everything for your plugin.
-
-**Q: Is database support required?**
-A: No, you can remove database functionality if not needed.
-
-**Q: Can I add more endpoints?**
-A: Absolutely! Modify `SetupEndpoints` and add handlers as needed.
-
-**Q: How do I handle migrations?**
-A: Place SQL files in `migrations/` - GoREST handles the rest.
+3. Add tests for new functionality
+4. Ensure all tests pass and coverage remains high
+5. Run linter (`make lint`)
+6. Submit a pull request
 
 ## Troubleshooting
 
-### "user not authenticated" errors
+### Common words flagged as errors
 
-Ensure the auth plugin is registered and configured properly. The spellcheck plugin requires authenticated users for most operations.
+The built-in dictionary contains 500+ common words. If you encounter false positives, add words to `ignored_words` or use a custom dictionary.
 
-### Migration errors
+### Performance issues with large texts
 
-Check that your database URL is correct and migrations are enabled in your config.
+Set `max_text_length` appropriately for your use case. The default 10,000 characters is suitable for most applications.
 
-### Import path errors
+### Middleware not validating
 
-After renaming the plugin, make sure to update all import paths and run `go mod tidy`.
-
----
-
-## Git Hooks
-
-This directory contains git hooks for the GoREST plugin to maintain code quality.
-
-### Available Hooks
-
-#### pre-commit
-
-Runs before each commit to ensure code quality:
-- **Linting**: Runs `make lint` to check code style and potential issues
-- **Tests**: Runs `make test` to verify all tests pass
-
-### Installation
-
-#### Automatic Installation
-
-Run the install script from the project root:
-
-```bash
-./.githooks/install.sh
-```
-
-#### Manual Installation
-
-Copy the hooks to your `.git/hooks` directory:
-
-```bash
-cp .githooks/pre-commit .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
-```
-
----
-
+Ensure:
+- Plugin is enabled in configuration
+- Content-Type is `application/json`
+- Request method is POST, PUT, or PATCH
+- Field names match the heuristic or struct tags are used
 
 ## License
 
@@ -603,25 +481,26 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 ## Related Projects
 
-- [GoREST](https://github.com/nicolasbonnici/gorest) - The main GoREST framework
+- [GoREST](https://github.com/nicolasbonnici/gorest) - The GoREST framework
 - [GoREST Auth Plugin](https://github.com/nicolasbonnici/gorest-auth) - JWT authentication
-- [GoREST Status Plugin](https://github.com/nicolasbonnici/gorest-status) - Health checks
+- [GoREST RBAC Plugin](https://github.com/nicolasbonnici/gorest-rbac) - Role-based access control
 - [GoREST Blog Plugin](https://github.com/nicolasbonnici/gorest-blog) - Blog functionality
 
 ## Support
-
-For questions, issues, or contributions:
 
 - GitHub Issues: https://github.com/nicolasbonnici/gorest-spellcheck/issues
 - GoREST Documentation: https://github.com/nicolasbonnici/gorest
 
 ## Changelog
 
-### v1.0.0 (2025-12-31)
+### v0.1.0 (2026-03-03)
 
-- Initial spellcheck plugin release
-- Complete CRUD operations example
-- Repository pattern implementation
-- Full documentation and examples
-- CI/CD pipeline
-- Test coverage examples
+- Initial release
+- Automatic middleware validation
+- On-demand spell checking endpoint
+- Struct tag annotations
+- Built-in English dictionary (500+ words)
+- Custom dictionary support
+- Thread-safe tag parsing with caching
+- 82.6% test coverage
+- Comprehensive integration tests

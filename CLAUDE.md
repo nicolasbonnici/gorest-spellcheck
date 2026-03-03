@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is the **gorest-spellcheck** plugin, a comprehensive template/boilerplate for creating new GoREST plugins. It demonstrates all common patterns, structures, and best practices used across the GoREST plugin ecosystem.
+This is the **gorest-spellcheck** plugin, providing automatic spelling validation middleware and on-demand spell checking for GoREST applications.
 
-**Purpose**: Clone this repository as a starting point when creating new plugins. It includes complete CRUD operations, database integration, configuration management, testing, and CI/CD.
+**Purpose**: Validates text fields in HTTP requests for spelling errors using a built-in English dictionary with 500+ words. Provides both automatic middleware validation (using struct tags or field name heuristics) and an explicit HTTP endpoint for on-demand checking.
 
 ## Build & Test Commands
 
@@ -80,215 +80,367 @@ The plugin automatically receives these values from GoREST core:
 spellcheck/
 ├── plugin.go              # Plugin interface implementation
 ├── config.go              # Configuration with validation
-├── models.go              # Data models (database structs)
-├── dtos.go                # Request/Response structs
-├── handlers.go            # HTTP request handlers
-├── repository.go          # Database operations layer
-├── *_test.go              # Unit tests
-├── migrations/            # Database migrations
-└── examples/basic/        # Usage example
+├── models.go              # Request/Response structs (CheckRequest, CheckResponse)
+├── errors.go              # Custom error types
+├── spellchecker.go        # Core spell checking logic (fuzzy matching)
+├── tag_parser.go          # Struct tag parsing with caching
+├── middleware.go          # Automatic validation middleware
+├── handlers.go            # HTTP endpoint handler (/api/spellcheck)
+├── *_test.go              # Unit tests (82.6% coverage)
+├── plugin_integration_test.go  # End-to-end integration tests
+└── examples/basic/        # Usage example (if needed)
 ```
 
 ## Key Components
 
 ### Configuration (config.go)
 
-Defines plugin settings with validation:
+Defines plugin settings with comprehensive validation:
 
 ```go
 type Config struct {
-    Enabled  bool  // Enable/disable plugin
-    MaxItems int   // Max items per request (1-1000)
+    Enabled            bool     // Enable/disable plugin
+    DefaultLanguage    string   // Default: "en"
+    SupportedLanguages []string // Initially: ["en"]
+    MaxTextLength      int      // Default: 10000 (1-1,000,000)
+    MaxSuggestions     int      // Default: 5 (1-20)
+    IgnoredWords       []string // Custom ignored words
+    CustomDictionary   string   // Path to custom dictionary
+    CaseSensitive      bool     // Default: false
+    MinWordLength      int      // Default: 2 (1-10)
 }
 ```
 
-**Important**: Always call `config.Validate()` in `Initialize()` to catch invalid configuration early.
+**Important**: `config.Validate()` enforces strict ranges on all values to prevent resource exhaustion.
 
-### Repository Pattern (repository.go)
+### Spellchecker (spellchecker.go)
 
-Encapsulates all database operations:
+Core spell checking logic using `github.com/sajari/fuzzy`:
 
 ```go
-type Repository interface {
-    Create(ctx context.Context, item *models.SpellcheckItem) error
-    GetByID(ctx context.Context, id string) (*models.SpellcheckItem, error)
-    List(ctx context.Context, limit, offset int) ([]models.SpellcheckItem, int, error)
-    Update(ctx context.Context, id string, item *models.SpellcheckItem) error
-    Delete(ctx context.Context, id string) error
+type Spellchecker struct {
+    model          *fuzzy.Model
+    config         *Config
+    ignoredWords   map[string]bool
+    caseSensitive  bool
+    minWordLength  int
+    maxSuggestions int
 }
 ```
 
-**Why Repository Pattern?**
-- Separates business logic from database operations
-- Makes testing easier (can mock repository)
-- Consistent interface across different storage backends
-- Simplifies handler code
+**Key Methods**:
+- `Check(text string) (*SpellingErrors, error)` - Check entire text
+- `CheckField(fieldName, text string) (*SpellingErrors, error)` - Check with field context
+- `extractWords(text string) []wordInfo` - Extract words with positions
+- `isCorrect(word string) bool` - Check if word is in dictionary
+- `getSuggestions(word string) []string` - Get correction suggestions
 
-### Handler Layer (handlers.go)
+**Dictionary**: 500+ built-in English words including common tech terms (API, JSON, HTTP, etc.)
 
-Handles HTTP requests and responses:
+### TagParser (tag_parser.go)
+
+Thread-safe struct tag parser with caching:
+
+```go
+type TagParser struct {
+    cache sync.Map // map[reflect.Type][]FieldInfo
+}
+
+type FieldInfo struct {
+    Name          string // Go field name
+    JSONName      string // JSON tag name
+    SpellCheck    bool   // Has spellcheck:"true"
+    IsStringField bool
+}
+```
+
+**Caching Strategy**: Parses each struct type once using reflection, stores in sync.Map for concurrent access.
+
+### Middleware (middleware.go)
+
+Automatic validation for POST/PUT/PATCH requests:
+
+```go
+type Middleware struct {
+    config       *Config
+    spellchecker *Spellchecker
+    tagParser    *TagParser
+}
+```
+
+**Two Validation Methods**:
+1. `Validate() fiber.Handler` - Middleware for automatic request validation
+2. `ValidateStruct(v interface{}) (*SpellingErrors, error)` - Explicit struct validation
+
+**Field Selection**:
+- Uses `shouldCheckField()` heuristic for common field names (title, content, description, etc.)
+- Only validates POST/PUT/PATCH with JSON content-type
+- Skips validation for GET/DELETE/HEAD requests
+
+### Handler (handlers.go)
+
+HTTP endpoint for on-demand spell checking:
 
 ```go
 type Handler struct {
-    repo   Repository
-    config *Config
+    config       *Config
+    spellchecker *Spellchecker
 }
 ```
 
-**Handler Responsibilities**:
-1. Parse and validate request bodies (DTOs)
-2. Convert DTOs to models
-3. Call repository methods
-4. Return standardized responses
+**Endpoint**: `POST /api/spellcheck`
 
-### Models vs DTOs
-
-**Models** (`models.go`): Database representations with `db` tags
+**Request Model**:
 ```go
-type SpellcheckItem struct {
-    Id          string     `json:"id" db:"id"`
-    Name        string     `json:"name" db:"name"`
-    Description string     `json:"description" db:"description"`
-    CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+type CheckRequest struct {
+    Text     string            `json:"text" validate:"required"`
+    Language string            `json:"language,omitempty"`
+    Context  []string          `json:"context,omitempty"` // Temporary ignored words
+    Options  *CheckOptions     `json:"options,omitempty"`
 }
 ```
 
-**DTOs** (`dtos.go`): Request/Response formats
+**Response Model**:
 ```go
-type CreateSpellcheckItemRequest struct {
-    Name        string  `json:"name" validate:"required,min=1,max=255"`
-    Description string  `json:"description"`
+type CheckResponse struct {
+    Valid       bool                       `json:"valid"`
+    Errors      []*SpellingError           `json:"errors,omitempty"`
+    Suggestions map[string][]string        `json:"suggestions,omitempty"`
+    Text        string                     `json:"text,omitempty"`
 }
 ```
 
-**Key Difference**: DTOs exclude system-managed fields (id, created_at, updated_at) and include validation tags.
+## API Endpoint
 
-## Database Migrations
+The spellcheck plugin registers a single endpoint: `POST /api/spellcheck`
 
-Located in `migrations/` directory with format: `YYYYMMDDHHMMSSMMM_description.sql`
+### On-Demand Spell Checking
 
-```sql
--- migrations/001_create_spellcheck_items.sql
-CREATE TABLE spellcheck_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP
-);
-```
-
-**Migration Best Practices**:
-- Use timestamps in filename for ordering
-- Include both UP and DOWN migrations
-- Test migrations on all supported databases (PostgreSQL, MySQL, SQLite)
-- Never modify existing migrations (create new ones instead)
-
-## API Endpoints
-
-The spellcheck registers these routes under `/api/spellcheck`:
-
-```
-POST   /api/spellcheck       - Create new item
-GET    /api/spellcheck/:id   - Get item by ID
-GET    /api/spellcheck       - List all items (paginated)
-PUT    /api/spellcheck/:id   - Update item
-DELETE /api/spellcheck/:id   - Delete item
-```
-
-### Request/Response Examples
-
-**Create Item**:
+**Request**:
 ```json
 POST /api/spellcheck
-{
-  "name": "Example Item",
-  "description": "This is an example"
-}
+Content-Type: application/json
 
-Response (201):
 {
-  "id": "uuid-here",
-  "name": "Example Item",
-  "description": "This is an example",
-  "created_at": "2025-01-01T00:00:00Z"
+  "text": "Teh quik brown fox jumps over the lazy dog",
+  "language": "en",
+  "context": ["API", "JSON"],
+  "options": {
+    "case_sensitive": false,
+    "max_suggestions": 3
+  }
 }
 ```
 
-**List Items** (with pagination):
+**Response (400 Bad Request)** - Text has spelling errors:
 ```json
-GET /api/spellcheck?limit=10&offset=0
-
-Response (200):
 {
-  "items": [...],
-  "total": 42,
-  "limit": 10,
-  "offset": 0
+  "valid": false,
+  "errors": [
+    {
+      "word": "Teh",
+      "position": 0,
+      "suggestions": ["The", "Tea", "Ten"]
+    },
+    {
+      "word": "quik",
+      "position": 4,
+      "suggestions": ["quick", "quit", "quiz"]
+    }
+  ],
+  "suggestions": {
+    "Teh": ["The", "Tea", "Ten"],
+    "quik": ["quick", "quit", "quiz"]
+  },
+  "text": "Teh quik brown fox jumps over the lazy dog"
 }
+```
+
+**Response (200 OK)** - Text is correct:
+```json
+{
+  "valid": true,
+  "errors": [],
+  "text": "The quick brown fox jumps over the lazy dog"
+}
+```
+
+## Middleware Behavior
+
+### Automatic Validation
+
+The middleware validates POST/PUT/PATCH requests with JSON bodies:
+
+1. **Request Filtering**:
+   - Only validates POST/PUT/PATCH methods
+   - Only validates application/json content-type
+   - Skips empty bodies
+   - Passes through GET/DELETE/HEAD requests
+
+2. **Field Selection**:
+   - Checks common text field names: title, content, description, body, text, message, comment, note, summary, excerpt, caption, bio, about
+   - Ignores structural fields: id, slug, email, password, username
+
+3. **Error Response** (400 Bad Request):
+```json
+{
+  "error": "Spelling errors found",
+  "errors": [
+    {
+      "field": "title",
+      "word": "Teh",
+      "position": 0,
+      "suggestions": ["The", "Tea", "Ten"]
+    }
+  ]
+}
+```
+
+### Struct Tag Validation
+
+Use `ValidateStruct()` for explicit validation with tags:
+
+```go
+type Article struct {
+    Title   string `json:"title" spellcheck:"true"`   // ✓ Checked
+    Content string `json:"content" spellcheck:"true"` // ✓ Checked
+    Slug    string `json:"slug"`                      // ✗ Not checked
+}
+
+middleware.ValidateStruct(&article)
 ```
 
 ## Important Patterns
 
-### Error Handling
+### Error Types
 
-Always return consistent error responses:
+The plugin provides specialized error types:
 
 ```go
-if err != nil {
-    return c.Status(500).JSON(fiber.Map{
-        "error": "Failed to create item",
-        "details": err.Error(),
-    })
+// SpellingError - Single word error with suggestions
+type SpellingError struct {
+    Field       string
+    Word        string
+    Position    int
+    Suggestions []string
+}
+
+// TextTooLongError - Prevents resource exhaustion
+type TextTooLongError struct {
+    Length    int
+    MaxLength int
+}
+
+// UnsupportedLanguageError - Language validation
+type UnsupportedLanguageError struct {
+    Language           string
+    SupportedLanguages []string
 }
 ```
 
-### Validation
+### Thread-Safe Caching
 
-Use validator tags in DTOs and validate before processing:
+TagParser uses sync.Map for concurrent access:
 
 ```go
-if err := req.Validate(); err != nil {
-    return c.Status(400).JSON(fiber.Map{
-        "error": "Validation failed",
-        "details": err.Error(),
-    })
+// Parse struct once, cache forever
+func (p *TagParser) Parse(v interface{}) []FieldInfo {
+    typ := reflect.TypeOf(v)
+    if typ.Kind() == reflect.Ptr {
+        typ = typ.Elem()
+    }
+
+    // Check cache first
+    if cached, ok := p.cache.Load(typ); ok {
+        return cached.([]FieldInfo)
+    }
+
+    // Parse and cache
+    fieldInfos := p.parseStruct(typ)
+    p.cache.Store(typ, fieldInfos)
+    return fieldInfos
+}
+```
+
+### Fuzzy Matching Configuration
+
+Spellchecker uses configurable Levenshtein distance:
+
+```go
+model := fuzzy.NewModel()
+model.SetDepth(4)      // Max 4 character differences
+model.SetThreshold(1)  // Suggestion threshold
+```
+
+### Dictionary Loading
+
+Batch training for optimal performance:
+
+```go
+// Train with all words at once (more efficient)
+model.Train(commonWords)
+
+// Also train with capitalized versions
+for _, word := range commonWords {
+    if len(word) > 0 {
+        capitalized := strings.ToUpper(word[:1]) + word[1:]
+        model.Train([]string{capitalized})
+    }
 }
 ```
 
 ### Logging
 
-Use structured logging throughout:
+Use structured logging for spell check operations:
 
 ```go
-logger.Log.Info("Creating spellcheck item", "name", req.Name)
-logger.Log.Error("Failed to create item", "error", err, "name", req.Name)
+logger.Log.Info("Spellcheck plugin initialized successfully",
+    "enabled", config.Enabled,
+    "default_language", config.DefaultLanguage,
+    "max_text_length", config.MaxTextLength)
+
+logger.Log.Error("Spell check failed", "field", fieldName, "error", err)
 ```
 
-### Context Propagation
+### Performance Optimizations
 
-Always pass context down the call chain for proper timeout/cancellation handling:
+1. **Struct parsing**: Cached by type using sync.Map
+2. **Dictionary**: Loaded once at initialization
+3. **Request filtering**: Early exit for non-JSON, GET requests
+4. **Word extraction**: Single pass with position tracking
+5. **Ignored words**: Map lookup O(1) instead of slice O(n)
 
-```go
-func (h *Handler) Create(c *fiber.Ctx) error {
-    ctx := c.Context()
-    // Pass ctx to repository methods
-    err := h.repo.Create(ctx, item)
-}
+## Testing Strategy
+
+### Unit Tests
+
+Comprehensive test coverage (82.6%):
+
+- `config_test.go` - Configuration validation edge cases
+- `errors_test.go` - Custom error types
+- `spellchecker_test.go` - Core spelling logic, dictionary loading
+- `tag_parser_test.go` - Struct parsing, caching, concurrent access
+- `models_test.go` - Request/response validation
+- `handlers_test.go` - HTTP endpoint behavior
+- `middleware_test.go` - Automatic validation, field selection
+- `plugin_test.go` - Plugin initialization and configuration
+- `plugin_integration_test.go` - End-to-end integration scenarios
+
+### Running Tests
+
+```bash
+# All tests
+make test
+
+# With coverage report
+make test-coverage
+
+# Specific test
+go test -v -run TestSpellchecker_Check
+
+# Integration tests
+go test -v -run TestPluginIntegration
 ```
-
-## Customizing This Template
-
-When creating a new plugin from this spellcheck:
-
-1. **Clone and rename**: `cp -r gorest-spellcheck gorest-yourplugin`
-2. **Global find/replace**: `spellcheck` → `yourplugin`, `Spellcheck` → `YourPlugin`
-3. **Update go.mod**: Module name, dependencies
-4. **Customize models**: Update `models.go` and `dtos.go` for your domain
-5. **Update migrations**: Create appropriate database schema
-6. **Modify handlers**: Add plugin-specific business logic
-7. **Update docs**: README.md, CLAUDE.md, configuration examples
-8. **Test thoroughly**: Add tests for all custom logic
 
 ## Pre-commit Hooks
 
@@ -311,13 +463,31 @@ The hook runs `make lint && make test` before each commit to ensure code quality
 
 ## Common Issues
 
-### "Database not initialized" warnings
+### Common words flagged as errors
 
-The plugin can run without a database for testing middleware-only features. If you see this warning but need database features, ensure `gorest.yaml` includes database configuration.
+The built-in dictionary contains 500+ common words. If you encounter false positives:
+- Add words to `ignored_words` configuration
+- Use a custom dictionary file with domain-specific terms
+- Check if the word is a technical term or brand name
 
-### Migration conflicts
+### Middleware not validating requests
 
-If migrations fail, check:
-1. Database connection is valid
-2. Migration version doesn't conflict with existing versions
-3. SQL syntax is compatible with target database (PostgreSQL/MySQL/SQLite)
+Ensure:
+1. Plugin is enabled in configuration (`enabled: true`)
+2. Request Content-Type is `application/json`
+3. Request method is POST, PUT, or PATCH (GET/DELETE are skipped)
+4. Field names match the heuristic or struct tags are used
+
+### Performance with large texts
+
+Set `max_text_length` appropriately:
+- Default: 10,000 characters
+- For long documents: Increase to 50,000-100,000
+- For short messages: Decrease to 1,000-5,000
+
+### Suggestions not accurate
+
+The fuzzy library may not always return perfect suggestions. This is acceptable as long as:
+- Misspelled words are detected correctly
+- Some suggestions are provided (even if not perfect)
+- The primary use case (blocking misspelled content) works
