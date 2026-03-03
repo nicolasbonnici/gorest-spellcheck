@@ -1,152 +1,105 @@
 package spellcheck
 
 import (
-	"encoding/json"
 	"testing"
-	"time"
-
-	"github.com/google/uuid"
 )
 
-func TestItemJSONSerialization(t *testing.T) {
-	now := time.Now()
-	item := Item{
-		ID:          uuid.New(),
-		Name:        "Test Item",
-		Description: "Test Description",
-		UserID:      uuid.New(),
-		Active:      true,
-		CreatedAt:   now,
-		UpdatedAt:   &now,
-	}
-
-	data, err := json.Marshal(item)
-	if err != nil {
-		t.Fatalf("Failed to marshal item: %v", err)
-	}
-
-	var decoded Item
-	err = json.Unmarshal(data, &decoded)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal item: %v", err)
-	}
-
-	if decoded.Name != item.Name {
-		t.Errorf("Expected name %s, got %s", item.Name, decoded.Name)
-	}
-
-	if decoded.Description != item.Description {
-		t.Errorf("Expected description %s, got %s", item.Description, decoded.Description)
-	}
-
-	if decoded.Active != item.Active {
-		t.Errorf("Expected active %v, got %v", item.Active, decoded.Active)
-	}
-}
-
-func TestCreateItemRequestValidation(t *testing.T) {
+func TestCheckRequest_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
-		request CreateItemRequest
-		valid   bool
+		req     CheckRequest
+		wantErr bool
 	}{
 		{
 			name: "valid request",
-			request: CreateItemRequest{
-				Name:        "Test Item",
-				Description: "Test Description",
-				Active:      true,
+			req: CheckRequest{
+				Text: "Hello world",
 			},
-			valid: true,
+			wantErr: false,
 		},
 		{
-			name: "empty description is valid",
-			request: CreateItemRequest{
-				Name:   "Test Item",
-				Active: true,
+			name: "valid request with language",
+			req: CheckRequest{
+				Text:     "Hello world",
+				Language: "en",
 			},
-			valid: true,
+			wantErr: false,
+		},
+		{
+			name: "valid request with context",
+			req: CheckRequest{
+				Text:    "API endpoint",
+				Context: []string{"API", "endpoint"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty text",
+			req: CheckRequest{
+				Text: "",
+			},
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.request.Name == "" && tt.valid {
-				t.Error("Empty name should not be valid")
+			err := tt.req.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
 }
 
-func TestUpdateItemRequestPartialUpdate(t *testing.T) {
-	name := "Updated Name"
-	active := false
-
-	req := UpdateItemRequest{
-		Name:   &name,
-		Active: &active,
+func TestCheckResponse_Structure(t *testing.T) {
+	// Test that CheckResponse can be created with all fields
+	response := CheckResponse{
+		Valid: false,
+		Errors: []*SpellingError{
+			{
+				Word:        "teh",
+				Position:    0,
+				Suggestions: []string{"the", "tea"},
+			},
+		},
+		Suggestions: map[string][]string{
+			"teh": {"the", "tea"},
+		},
+		Text: "teh test",
 	}
 
-	if req.Description != nil {
-		t.Error("Description should be nil for partial update")
+	if response.Valid {
+		t.Error("Expected Valid to be false when errors present")
 	}
 
-	if *req.Name != name {
-		t.Errorf("Expected name %s, got %s", name, *req.Name)
+	if len(response.Errors) != 1 {
+		t.Errorf("Expected 1 error, got %d", len(response.Errors))
 	}
 
-	if *req.Active != active {
-		t.Errorf("Expected active %v, got %v", active, *req.Active)
+	if len(response.Suggestions) != 1 {
+		t.Errorf("Expected 1 suggestion, got %d", len(response.Suggestions))
+	}
+
+	if response.Text == "" {
+		t.Error("Expected Text to be non-empty")
 	}
 }
 
-func TestListItemsResponse(t *testing.T) {
-	items := []Item{
-		{
-			ID:          uuid.New(),
-			Name:        "Item 1",
-			Description: "Description 1",
-			UserID:      uuid.New(),
-			Active:      true,
-			CreatedAt:   time.Now(),
-		},
-		{
-			ID:          uuid.New(),
-			Name:        "Item 2",
-			Description: "Description 2",
-			UserID:      uuid.New(),
-			Active:      false,
-			CreatedAt:   time.Now(),
-		},
+func TestCheckOptions_Structure(t *testing.T) {
+	caseSensitive := true
+	maxSuggestions := 10
+
+	options := CheckOptions{
+		CaseSensitive:  &caseSensitive,
+		MaxSuggestions: &maxSuggestions,
 	}
 
-	response := ListItemsResponse{
-		Items:  items,
-		Total:  2,
-		Limit:  20,
-		Offset: 0,
+	if options.CaseSensitive == nil || *options.CaseSensitive != true {
+		t.Error("Expected CaseSensitive to be settable")
 	}
 
-	data, err := json.Marshal(response)
-	if err != nil {
-		t.Fatalf("Failed to marshal response: %v", err)
-	}
-
-	var decoded ListItemsResponse
-	err = json.Unmarshal(data, &decoded)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if len(decoded.Items) != 2 {
-		t.Errorf("Expected 2 items, got %d", len(decoded.Items))
-	}
-
-	if decoded.Total != 2 {
-		t.Errorf("Expected total 2, got %d", decoded.Total)
-	}
-
-	if decoded.Limit != 20 {
-		t.Errorf("Expected limit 20, got %d", decoded.Limit)
+	if options.MaxSuggestions == nil || *options.MaxSuggestions != 10 {
+		t.Error("Expected MaxSuggestions to be settable")
 	}
 }

@@ -53,8 +53,15 @@ func (p *SpellcheckPlugin) Initialize(config map[string]interface{}) error {
 		return err
 	}
 
+	// Initialize spellchecker
+	spellchecker, err := NewSpellchecker(&p.config)
+	if err != nil {
+		logger.Log.Error("Failed to initialize spellchecker", "error", err)
+		return err
+	}
+
 	// Initialize handler
-	p.handler = NewHandler(&p.config)
+	p.handler = NewHandler(&p.config, spellchecker)
 
 	logger.Log.Info("Spellcheck plugin initialized successfully",
 		"enabled", p.config.Enabled,
