@@ -132,12 +132,13 @@ func (s *Spellchecker) isCorrect(word string) bool {
 		checkWord = strings.ToLower(word)
 	}
 
-	// Check if word exists in dictionary using fuzzy model's suggestions
-	// If the word gets itself back as the first suggestion, it's in the dictionary
-	suggestions := s.model.Suggestions(checkWord, false)
+	// Use SpellCheck to see if the word needs correction
+	// If the correction matches the input, the word is correct
+	correction := s.model.SpellCheck(checkWord)
+	correctionStr := string(correction)
 
-	// If we get suggestions and the first one matches exactly, the word is correct
-	if len(suggestions) > 0 && suggestions[0] == checkWord {
+	// If the model returns the same word or empty, it's correct
+	if correctionStr == "" || correctionStr == checkWord {
 		return true
 	}
 
