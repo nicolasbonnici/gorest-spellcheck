@@ -74,9 +74,9 @@ func TestMiddleware_Validate(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:   "empty body",
-			method: http.MethodPost,
-			body:   map[string]interface{}{},
+			name:           "empty body",
+			method:         http.MethodPost,
+			body:           map[string]interface{}{},
 			expectedStatus: http.StatusOK,
 		},
 		{
@@ -89,9 +89,9 @@ func TestMiddleware_Validate(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:   "GET request - skip validation",
-			method: http.MethodGet,
-			body:   nil,
+			name:           "GET request - skip validation",
+			method:         http.MethodGet,
+			body:           nil,
 			expectedStatus: http.StatusMethodNotAllowed, // No GET handler defined
 		},
 	}

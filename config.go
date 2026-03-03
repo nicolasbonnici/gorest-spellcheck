@@ -64,7 +64,6 @@ func (c *Config) Validate() error {
 		return errors.New("supported_languages cannot be empty")
 	}
 
-	// Check if default language is in supported languages
 	found := false
 	for _, lang := range c.SupportedLanguages {
 		if lang == c.DefaultLanguage {

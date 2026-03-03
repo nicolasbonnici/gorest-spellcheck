@@ -23,7 +23,6 @@ func (p *SpellcheckPlugin) Name() string {
 func (p *SpellcheckPlugin) Initialize(config map[string]interface{}) error {
 	p.config = DefaultConfig()
 
-	// Extract config values from map
 	if enabled, ok := config["enabled"].(bool); ok {
 		p.config.Enabled = enabled
 	}
@@ -48,23 +47,19 @@ func (p *SpellcheckPlugin) Initialize(config map[string]interface{}) error {
 		p.config.CaseSensitive = caseSensitive
 	}
 
-	// Validate configuration
 	if err := p.config.Validate(); err != nil {
 		logger.Log.Error("Invalid spellcheck plugin configuration", "error", err)
 		return err
 	}
 
-	// Initialize spellchecker
 	spellchecker, err := NewSpellchecker(&p.config)
 	if err != nil {
 		logger.Log.Error("Failed to initialize spellchecker", "error", err)
 		return err
 	}
 
-	// Initialize handler
 	p.handler = NewHandler(&p.config, spellchecker)
 
-	// Initialize middleware
 	middleware, err := NewMiddleware(&p.config, spellchecker)
 	if err != nil {
 		logger.Log.Error("Failed to initialize middleware", "error", err)
@@ -80,12 +75,10 @@ func (p *SpellcheckPlugin) Initialize(config map[string]interface{}) error {
 }
 
 func (p *SpellcheckPlugin) Handler() fiber.Handler {
-	// If middleware is enabled and initialized, return the validator
 	if p.config.Enabled && p.middleware != nil {
 		return p.middleware.Validate()
 	}
 
-	// Otherwise, pass through
 	return func(c *fiber.Ctx) error {
 		return c.Next()
 	}

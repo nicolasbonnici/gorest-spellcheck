@@ -23,23 +23,19 @@ type Spellchecker struct {
 func NewSpellchecker(config *Config) (*Spellchecker, error) {
 	model := fuzzy.NewModel()
 
-	// Set fuzzy matching parameters
-	model.SetDepth(4)      // Allows matching words with up to 4 character differences
-	model.SetThreshold(1)  // Set threshold for suggestions
+	model.SetDepth(4)
+	model.SetThreshold(1)
 
-	// Load English dictionary (built-in common words)
 	if err := loadEnglishDictionary(model); err != nil {
 		return nil, err
 	}
 
-	// Load custom dictionary if provided
 	if config.CustomDictionary != "" {
 		if err := loadDictionaryFromFile(model, config.CustomDictionary); err != nil {
 			return nil, err
 		}
 	}
 
-	// Build ignored words map for fast lookup
 	ignoredWords := make(map[string]bool)
 	for _, word := range config.IgnoredWords {
 		if config.CaseSensitive {
@@ -61,7 +57,6 @@ func NewSpellchecker(config *Config) (*Spellchecker, error) {
 
 // Check checks the spelling of the given text and returns any errors found
 func (s *Spellchecker) Check(text string) (*SpellingErrors, error) {
-	// Check text length
 	if len(text) > s.config.MaxTextLength {
 		return nil, &TextTooLongError{
 			Length:    len(text),
@@ -76,12 +71,10 @@ func (s *Spellchecker) Check(text string) (*SpellingErrors, error) {
 		word := wordInfo.word
 		position := wordInfo.position
 
-		// Skip if word length is below minimum
 		if len(word) < s.minWordLength {
 			continue
 		}
 
-		// Skip if word is in ignored list
 		checkWord := word
 		if !s.caseSensitive {
 			checkWord = strings.ToLower(word)
@@ -90,12 +83,10 @@ func (s *Spellchecker) Check(text string) (*SpellingErrors, error) {
 			continue
 		}
 
-		// Skip if word contains numbers (likely not a real word)
 		if containsDigit(word) {
 			continue
 		}
 
-		// Check spelling
 		if !s.isCorrect(word) {
 			suggestions := s.getSuggestions(word)
 			errors.Add(&SpellingError{
@@ -116,7 +107,6 @@ func (s *Spellchecker) CheckField(fieldName, text string) (*SpellingErrors, erro
 		return nil, err
 	}
 
-	// Add field name to all errors
 	for _, e := range errors.Errors {
 		e.Field = fieldName
 	}
@@ -126,18 +116,14 @@ func (s *Spellchecker) CheckField(fieldName, text string) (*SpellingErrors, erro
 
 // isCorrect checks if a word is spelled correctly
 func (s *Spellchecker) isCorrect(word string) bool {
-	// Normalize case if not case-sensitive
 	checkWord := word
 	if !s.caseSensitive {
 		checkWord = strings.ToLower(word)
 	}
 
-	// Use SpellCheck to see if the word needs correction
-	// If the correction matches the input, the word is correct
 	correction := s.model.SpellCheck(checkWord)
 	correctionStr := string(correction)
 
-	// If the model returns the same word or empty, it's correct
 	if correctionStr == "" || correctionStr == checkWord {
 		return true
 	}
@@ -152,19 +138,14 @@ func (s *Spellchecker) getSuggestions(word string) []string {
 		checkWord = strings.ToLower(word)
 	}
 
-	// Get spell check corrections
 	correction := s.model.SpellCheck(checkWord)
-
-	// Convert byte slice to string
 	correctionStr := string(correction)
 
-	// If we got a correction and it's different from the input, return it
 	var filtered []string
 	if correctionStr != "" && correctionStr != checkWord {
 		filtered = append(filtered, correctionStr)
 	}
 
-	// Also try to get additional suggestions using Suggestions()
 	suggestions := s.model.Suggestions(checkWord, false)
 	for _, suggestion := range suggestions {
 		if suggestion != checkWord && suggestion != correctionStr {
@@ -175,12 +156,10 @@ func (s *Spellchecker) getSuggestions(word string) []string {
 		}
 	}
 
-	// Limit number of suggestions
 	if len(filtered) > s.maxSuggestions {
 		filtered = filtered[:s.maxSuggestions]
 	}
 
-	// If original word was capitalized, capitalize suggestions
 	if len(word) > 0 && unicode.IsUpper(rune(word[0])) && !s.caseSensitive {
 		for i, suggestion := range filtered {
 			if len(suggestion) > 0 {
@@ -245,13 +224,10 @@ func containsDigit(s string) bool {
 
 // loadEnglishDictionary loads a basic English dictionary into the model
 func loadEnglishDictionary(model *fuzzy.Model) error {
-	// Load common English words
 	commonWords := getCommonEnglishWords()
 
-	// Train model with all words at once (more efficient)
 	model.Train(commonWords)
 
-	// Also train with capitalized versions for better matching
 	for _, word := range commonWords {
 		if len(word) > 0 {
 			capitalized := strings.ToUpper(word[:1]) + word[1:]

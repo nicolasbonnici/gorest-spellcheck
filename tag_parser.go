@@ -26,28 +26,21 @@ func NewTagParser() *TagParser {
 // Parse extracts spellcheck metadata from a struct
 // Returns a slice of FieldInfo for fields that should be spellchecked
 func (p *TagParser) Parse(v interface{}) []FieldInfo {
-	// Get the type
 	t := reflect.TypeOf(v)
 
-	// Handle pointers
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 
-	// Only works with structs
 	if t.Kind() != reflect.Struct {
 		return nil
 	}
 
-	// Check cache first
 	if cached, ok := p.cache.Load(t); ok {
 		return cached.([]FieldInfo)
 	}
 
-	// Parse the struct
 	fields := p.parseStruct(t)
-
-	// Cache the result
 	p.cache.Store(t, fields)
 
 	return fields
@@ -58,25 +51,19 @@ func (p *TagParser) Parse(v interface{}) []FieldInfo {
 func (p *TagParser) ParseValue(v reflect.Value) []FieldInfo {
 	t := v.Type()
 
-	// Handle pointers
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 
-	// Only works with structs
 	if t.Kind() != reflect.Struct {
 		return nil
 	}
 
-	// Check cache first
 	if cached, ok := p.cache.Load(t); ok {
 		return cached.([]FieldInfo)
 	}
 
-	// Parse the struct
 	fields := p.parseStruct(t)
-
-	// Cache the result
 	p.cache.Store(t, fields)
 
 	return fields
@@ -89,30 +76,23 @@ func (p *TagParser) parseStruct(t reflect.Type) []FieldInfo {
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 
-		// Skip unexported fields
 		if !field.IsExported() {
 			continue
 		}
 
-		// Get the spellcheck tag
 		spellcheckTag := field.Tag.Get("spellcheck")
-
-		// Only include fields with spellcheck:"true"
 		if spellcheckTag != "true" {
 			continue
 		}
 
-		// Only string fields can be spellchecked
 		if field.Type.Kind() != reflect.String {
 			continue
 		}
 
-		// Get JSON tag name (use field name if not present)
 		jsonName := field.Tag.Get("json")
 		if jsonName == "" {
 			jsonName = field.Name
 		} else {
-			// Handle json:",omitempty" format
 			for idx := 0; idx < len(jsonName); idx++ {
 				if jsonName[idx] == ',' {
 					jsonName = jsonName[:idx]
@@ -136,23 +116,19 @@ func (p *TagParser) parseStruct(t reflect.Type) []FieldInfo {
 func (p *TagParser) GetFieldValue(v interface{}, fieldName string) (string, bool) {
 	val := reflect.ValueOf(v)
 
-	// Handle pointers
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
 	}
 
-	// Only works with structs
 	if val.Kind() != reflect.Struct {
 		return "", false
 	}
 
-	// Get the field by name
 	fieldVal := val.FieldByName(fieldName)
 	if !fieldVal.IsValid() {
 		return "", false
 	}
 
-	// Ensure it's a string
 	if fieldVal.Kind() != reflect.String {
 		return "", false
 	}
@@ -166,9 +142,7 @@ func (p *TagParser) ExtractFieldsFromMap(data map[string]interface{}, fieldInfos
 	result := make(map[string]string)
 
 	for _, info := range fieldInfos {
-		// Try to get value using JSON name
 		if val, ok := data[info.JSONName]; ok {
-			// Convert to string if it's a string
 			if strVal, ok := val.(string); ok {
 				result[info.JSONName] = strVal
 			}

@@ -7,14 +7,14 @@ import (
 
 // Handler handles HTTP requests for the spellcheck endpoint
 type Handler struct {
-	config      *Config
+	config       *Config
 	spellchecker *Spellchecker
 }
 
 // NewHandler creates a new Handler instance
 func NewHandler(config *Config, spellchecker *Spellchecker) *Handler {
 	return &Handler{
-		config:      config,
+		config:       config,
 		spellchecker: spellchecker,
 	}
 }
@@ -108,8 +108,8 @@ func (h *Handler) Check(c *fiber.Ctx) error {
 
 	// Build response
 	response := CheckResponse{
-		Valid:  !errors.HasErrors(),
-		Text:   req.Text,
+		Valid: !errors.HasErrors(),
+		Text:  req.Text,
 	}
 
 	if errors.HasErrors() {

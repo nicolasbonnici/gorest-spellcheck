@@ -78,8 +78,8 @@ audit: ## Run all Go Report Card quality checks (gofmt, vet, staticcheck, etc.)
 	@echo "✓ ineffassign passed"
 	@echo ""
 	@echo "[5/7] Running misspell..."
-	@misspell -error $$(find . -type f -name '*.go' -o -name '*.md' -o -name '*.yaml' -o -name '*.yml' | grep -v vendor | grep -v generated | grep -v .git)
-	@echo "✓ misspell passed"
+	@misspell -error $$(find . -type f \( -name '*.go' -o -name '*.yaml' -o -name '*.yml' \) ! -name '*_test.go' ! -path './examples/*' | grep -v vendor | grep -v generated | grep -v .git)
+	@echo "✓ misspell passed (test files and docs excluded - they contain intentional misspellings)"
 	@echo ""
 	@echo "[6/7] Running errcheck..."
 	@errcheck -exclude .errcheck-excludes -ignoretests ./... 2>&1 || \

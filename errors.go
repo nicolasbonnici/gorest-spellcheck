@@ -69,7 +69,7 @@ func (e *TextTooLongError) Error() string {
 
 // UnsupportedLanguageError indicates requested language is not supported
 type UnsupportedLanguageError struct {
-	Language          string
+	Language           string
 	SupportedLanguages []string
 }
 

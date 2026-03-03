@@ -111,7 +111,7 @@ func TestTextTooLongError(t *testing.T) {
 
 func TestUnsupportedLanguageError(t *testing.T) {
 	err := &UnsupportedLanguageError{
-		Language:          "fr",
+		Language:           "fr",
 		SupportedLanguages: []string{"en", "es"},
 	}
 

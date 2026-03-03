@@ -7,18 +7,19 @@ import (
 
 // Test structs
 type TestArticle struct {
-	ID          string `json:"id"`
-	Title       string `json:"title" spellcheck:"true"`
-	Content     string `json:"content" spellcheck:"true"`
-	Slug        string `json:"slug"` // No spellcheck
-	ViewCount   int    `json:"view_count"`
-	unexported  string `json:"unexported" spellcheck:"true"` // Should be ignored
+	ID        string `json:"id"`
+	Title     string `json:"title" spellcheck:"true"`
+	Content   string `json:"content" spellcheck:"true"`
+	Slug      string `json:"slug"` // No spellcheck
+	ViewCount int    `json:"view_count"`
+	//lint:ignore U1000 intentionally unexported to test field filtering
+	unexported string `spellcheck:"true"`
 }
 
 type TestProduct struct {
-	Name        string `json:"name" spellcheck:"true"`
-	Description string `json:"description,omitempty" spellcheck:"true"`
-	SKU         string `json:"sku"` // No spellcheck
+	Name        string  `json:"name" spellcheck:"true"`
+	Description string  `json:"description,omitempty" spellcheck:"true"`
+	SKU         string  `json:"sku"` // No spellcheck
 	Price       float64 `json:"price"`
 }
 
@@ -30,9 +31,9 @@ type TestNoSpellcheckFields struct {
 }
 
 type TestNonStringField struct {
-	ID       string `json:"id"`
-	Count    int    `json:"count" spellcheck:"true"` // Should be ignored (not string)
-	Title    string `json:"title" spellcheck:"true"`
+	ID    string `json:"id"`
+	Count int    `json:"count" spellcheck:"true"` // Should be ignored (not string)
+	Title string `json:"title" spellcheck:"true"`
 }
 
 func TestNewTagParser(t *testing.T) {
@@ -347,7 +348,7 @@ func TestTagParser_ExtractFieldsFromMap(t *testing.T) {
 
 	t.Run("handle non-string values", func(t *testing.T) {
 		badData := map[string]interface{}{
-			"title":   123,      // Not a string
+			"title":   123, // Not a string
 			"content": "Valid",
 		}
 
