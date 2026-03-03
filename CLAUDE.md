@@ -84,7 +84,7 @@ spellcheck/
 ├── errors.go              # Custom error types
 ├── spellchecker.go        # Core spell checking logic (fuzzy matching)
 ├── tag_parser.go          # Struct tag parsing with caching
-├── middleware.go          # Automatic validation middleware
+├── spellcheck_middleware.go # Automatic validation middleware
 ├── handlers.go            # HTTP endpoint handler (/api/spellcheck)
 ├── *_test.go              # Unit tests (82.6% coverage)
 ├── plugin_integration_test.go  # End-to-end integration tests
@@ -156,7 +156,7 @@ type FieldInfo struct {
 
 **Caching Strategy**: Parses each struct type once using reflection, stores in sync.Map for concurrent access.
 
-### Middleware (middleware.go)
+### Middleware (spellcheck_middleware.go)
 
 Automatic validation for POST/PUT/PATCH requests:
 
@@ -422,7 +422,7 @@ Comprehensive test coverage (82.6%):
 - `tag_parser_test.go` - Struct parsing, caching, concurrent access
 - `models_test.go` - Request/response validation
 - `handlers_test.go` - HTTP endpoint behavior
-- `middleware_test.go` - Automatic validation, field selection
+- `spellcheck_middleware_test.go` - Automatic validation, field selection
 - `plugin_test.go` - Plugin initialization and configuration
 - `plugin_integration_test.go` - End-to-end integration scenarios
 

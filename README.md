@@ -417,7 +417,7 @@ gorest-spellcheck/
 ├── errors.go              # Custom error types
 ├── spellchecker.go        # Core spell checking logic
 ├── tag_parser.go          # Struct tag parsing with caching
-├── middleware.go          # Automatic validation middleware
+├── spellcheck_middleware.go # Automatic validation middleware
 ├── handlers.go            # HTTP endpoint handler
 ├── *_test.go              # Unit tests (82.6% coverage)
 └── examples/              # Usage examples
