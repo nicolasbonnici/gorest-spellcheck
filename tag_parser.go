@@ -61,7 +61,6 @@ func (p *TagParser) ParseValue(v reflect.Value) []FieldInfo {
 	// Handle pointers
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
-		v = v.Elem()
 	}
 
 	// Only works with structs
