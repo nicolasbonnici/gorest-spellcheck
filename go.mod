@@ -6,17 +6,14 @@ toolchain go1.26.0
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.12
-	github.com/google/uuid v1.6.0
 	github.com/nicolasbonnici/gorest v0.4.12
 	github.com/sajari/fuzzy v1.0.0
 )
 
-// Use local gorest for development
-replace github.com/nicolasbonnici/gorest => ../gorest
-
 require (
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
