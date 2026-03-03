@@ -82,9 +82,8 @@ audit: ## Run all Go Report Card quality checks (gofmt, vet, staticcheck, etc.)
 	@echo "✓ misspell passed (test files and docs excluded - they contain intentional misspellings)"
 	@echo ""
 	@echo "[6/7] Running errcheck..."
-	@errcheck -exclude .errcheck-excludes -ignoretests ./... 2>&1 || \
-	(echo "⚠️  errcheck failed (known issue with go1.25.1 - will be fixed in CI)" && exit 0)
-	@echo "✓ errcheck passed (or skipped)"
+	@errcheck -exclude .errcheck-excludes ./...
+	@echo "✓ errcheck passed"
 	@echo ""
 	@echo "[7/7] Running gocyclo (threshold: 45)..."
 	@gocyclo_output=$$(gocyclo -over 45 . | grep -v 'vendor/' | grep -v 'generated/' | grep -v '_test.go' || true); \

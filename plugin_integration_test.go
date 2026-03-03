@@ -62,7 +62,9 @@ func TestPluginIntegration(t *testing.T) {
 		}
 
 		var response map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&response)
+		if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
 
 		if response["error"] != "Spelling errors found" {
 			t.Errorf("Expected spelling error message, got: %v", response["error"])
@@ -90,7 +92,9 @@ func TestPluginIntegration(t *testing.T) {
 
 		if resp.StatusCode != http.StatusCreated {
 			var response map[string]interface{}
-			json.NewDecoder(resp.Body).Decode(&response)
+			if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+				t.Fatalf("Failed to decode response: %v", err)
+			}
 			t.Errorf("Expected status 201, got %d. Response: %+v", resp.StatusCode, response)
 		}
 	})
@@ -114,7 +118,9 @@ func TestPluginIntegration(t *testing.T) {
 		}
 
 		var response CheckResponse
-		json.NewDecoder(resp.Body).Decode(&response)
+		if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
 
 		if response.Valid {
 			t.Error("Expected valid to be false")
@@ -144,7 +150,9 @@ func TestPluginIntegration(t *testing.T) {
 		}
 
 		var response CheckResponse
-		json.NewDecoder(resp.Body).Decode(&response)
+		if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
 
 		if !response.Valid {
 			t.Errorf("Expected valid to be true, got errors: %v", response.Errors)
