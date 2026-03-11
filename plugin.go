@@ -47,6 +47,22 @@ func (p *SpellcheckPlugin) Initialize(config map[string]interface{}) error {
 		p.config.CaseSensitive = caseSensitive
 	}
 
+	if ignoredWords, ok := config["ignored_words"].([]string); ok {
+		p.config.IgnoredWords = ignoredWords
+	} else if ignoredWordsIface, ok := config["ignored_words"].([]interface{}); ok {
+		// Handle []interface{} from map[string]interface{}
+		p.config.IgnoredWords = make([]string, len(ignoredWordsIface))
+		for i, word := range ignoredWordsIface {
+			if wordStr, ok := word.(string); ok {
+				p.config.IgnoredWords[i] = wordStr
+			}
+		}
+	}
+
+	if customDict, ok := config["custom_dictionary"].(string); ok {
+		p.config.CustomDictionary = customDict
+	}
+
 	if err := p.config.Validate(); err != nil {
 		logger.Log.Error("Invalid spellcheck plugin configuration", "error", err)
 		return err
