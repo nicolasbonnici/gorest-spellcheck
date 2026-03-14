@@ -38,16 +38,13 @@ func (m *Middleware) Validate() fiber.Handler {
 			return c.Next()
 		}
 
-		// Read the body (Fiber's c.Body() returns []byte directly)
+		// Read the body (Fiber's c.Body() returns []byte directly and keeps it for subsequent handlers)
 		bodyBytes := c.Body()
 
 		// If body is empty, skip validation
 		if len(bodyBytes) == 0 {
 			return c.Next()
 		}
-
-		// Restore the body for the next handler (Fiber already keeps it)
-		c.Request().SetBodyRaw(bodyBytes)
 
 		// Parse JSON body
 		var bodyMap map[string]interface{}

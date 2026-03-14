@@ -2,6 +2,7 @@ package spellcheck
 
 import (
 	"reflect"
+	"strings"
 	"sync"
 )
 
@@ -93,12 +94,8 @@ func (p *TagParser) parseStruct(t reflect.Type) []FieldInfo {
 		if jsonName == "" {
 			jsonName = field.Name
 		} else {
-			for idx := 0; idx < len(jsonName); idx++ {
-				if jsonName[idx] == ',' {
-					jsonName = jsonName[:idx]
-					break
-				}
-			}
+			// Use strings.Cut for more efficient parsing (Go 1.18+)
+			jsonName, _, _ = strings.Cut(jsonName, ",")
 		}
 
 		fields = append(fields, FieldInfo{

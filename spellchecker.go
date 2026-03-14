@@ -156,16 +156,19 @@ func (s *Spellchecker) getSuggestions(word string) []string {
 		}
 	}
 
-	if len(filtered) > s.maxSuggestions {
-		filtered = filtered[:s.maxSuggestions]
-	}
+	// Preserve capitalization if original word was capitalized
+	shouldCapitalize := !s.caseSensitive && len(word) > 0 && unicode.IsUpper(rune(word[0]))
 
-	if len(word) > 0 && unicode.IsUpper(rune(word[0])) && !s.caseSensitive {
+	if shouldCapitalize {
 		for i, suggestion := range filtered {
-			if len(suggestion) > 0 {
+			if len(suggestion) > 0 && len(filtered) <= s.maxSuggestions {
 				filtered[i] = strings.ToUpper(suggestion[:1]) + suggestion[1:]
 			}
 		}
+	}
+
+	if len(filtered) > s.maxSuggestions {
+		filtered = filtered[:s.maxSuggestions]
 	}
 
 	return filtered
@@ -179,7 +182,9 @@ type wordInfo struct {
 
 // extractWords extracts words from text with their positions
 func (s *Spellchecker) extractWords(text string) []wordInfo {
-	var words []wordInfo
+	// Pre-allocate slice with estimated capacity (rough estimate: 1 word per 6 chars)
+	estimatedWords := len(text)/6 + 1
+	words := make([]wordInfo, 0, estimatedWords)
 	var currentWord strings.Builder
 	wordStart := -1
 
