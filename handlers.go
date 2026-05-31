@@ -1,7 +1,7 @@
 package spellcheck
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/nicolasbonnici/gorest/logger"
 )
 
@@ -20,10 +20,10 @@ func NewHandler(config *Config, spellchecker *Spellchecker) *Handler {
 }
 
 // Check handles POST /api/spellcheck requests for on-demand spell checking
-func (h *Handler) Check(c *fiber.Ctx) error {
+func (h *Handler) Check(c fiber.Ctx) error {
 	// Parse request body
 	var req CheckRequest
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		logger.Log.Error("Failed to parse spell check request", "error", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",

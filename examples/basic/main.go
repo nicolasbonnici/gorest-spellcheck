@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	spellcheck "github.com/nicolasbonnici/gorest-spellcheck"
 )
 
@@ -60,7 +60,7 @@ func main() {
 	app.Get("/api/articles/:id", getArticle)
 
 	// Health check
-	app.Get("/health", func(c *fiber.Ctx) error {
+	app.Get("/health", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"status": "healthy",
 			"time":   time.Now(),
@@ -91,9 +91,9 @@ func main() {
 	}
 }
 
-func createArticle(c *fiber.Ctx) error {
+func createArticle(c fiber.Ctx) error {
 	var req CreateArticleRequest
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
@@ -115,7 +115,7 @@ func createArticle(c *fiber.Ctx) error {
 	return c.Status(201).JSON(article)
 }
 
-func getArticle(c *fiber.Ctx) error {
+func getArticle(c fiber.Ctx) error {
 	id := c.Params("id")
 
 	// Simplified - return mock data

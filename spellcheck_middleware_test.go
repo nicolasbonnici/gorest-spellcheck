@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func TestNewMiddleware(t *testing.T) {
@@ -46,7 +46,7 @@ func TestMiddleware_Validate(t *testing.T) {
 	app := fiber.New()
 	app.Use(middleware.Validate())
 
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("OK")
 	})
 
@@ -264,7 +264,7 @@ func TestMiddleware_NonJSONContentType(t *testing.T) {
 
 	app := fiber.New()
 	app.Use(middleware.Validate())
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		return c.SendString("OK")
 	})
 

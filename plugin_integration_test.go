@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func TestPluginIntegration(t *testing.T) {
@@ -36,7 +36,7 @@ func TestPluginIntegration(t *testing.T) {
 	}
 
 	// Add a test endpoint that accepts articles
-	app.Post("/articles", func(c *fiber.Ctx) error {
+	app.Post("/articles", func(c fiber.Ctx) error {
 		return c.Status(201).JSON(fiber.Map{
 			"message": "Article created successfully",
 		})
@@ -177,7 +177,7 @@ func TestPluginIntegrationDisabled(t *testing.T) {
 	app := fiber.New()
 	app.Use(plugin.Handler())
 
-	app.Post("/articles", func(c *fiber.Ctx) error {
+	app.Post("/articles", func(c fiber.Ctx) error {
 		return c.Status(201).JSON(fiber.Map{
 			"message": "Article created successfully",
 		})

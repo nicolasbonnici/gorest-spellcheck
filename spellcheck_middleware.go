@@ -3,7 +3,7 @@ package spellcheck
 import (
 	"encoding/json"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/nicolasbonnici/gorest/logger"
 )
 
@@ -25,7 +25,7 @@ func NewMiddleware(config *Config, spellchecker *Spellchecker) (*Middleware, err
 
 // Validate is the middleware handler that checks spelling in request bodies
 func (m *Middleware) Validate() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		// Only validate POST, PUT, PATCH requests
 		method := c.Method()
 		if method != fiber.MethodPost && method != fiber.MethodPut && method != fiber.MethodPatch {
