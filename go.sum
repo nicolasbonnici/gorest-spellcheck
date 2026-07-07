@@ -18,8 +18,8 @@ github.com/mattn/go-colorable v0.1.15 h1:+u9SLTRGnXv73cEsnsmoZBom+dMU88B2M0aDcWy
 github.com/mattn/go-colorable v0.1.15/go.mod h1:6LmQG8QLFO4G5z1gPvYEzlUgJ2wF+stgPZH1UqBm1s8=
 github.com/mattn/go-isatty v0.0.22 h1:j8l17JJ9i6VGPUFUYoTUKPSgKe/83EYU2zBC7YNKMw4=
 github.com/mattn/go-isatty v0.0.22/go.mod h1:ZXfXG4SQHsB/w3ZeOYbR0PrPwLy+n6xiMrJlRFqopa4=
-github.com/nicolasbonnici/gorest v0.6.1 h1:uaq+Ob3MPmJ9Nw17IFIf+O9YEkk/uK27uxz2vp33TCU=
-github.com/nicolasbonnici/gorest v0.6.1/go.mod h1:IWHxmW8AhI//YK2fXgq8S5GSmecYGRxm6bznTt578bY=
+github.com/nicolasbonnici/gorest v0.6.2 h1:P33uh2whacToGNOGN1kW0nUWU8ogHQ1As9Y039gaUJw=
+github.com/nicolasbonnici/gorest v0.6.2/go.mod h1:IWHxmW8AhI//YK2fXgq8S5GSmecYGRxm6bznTt578bY=
 github.com/philhofer/fwd v1.2.0 h1:e6DnBTl7vGY+Gz322/ASL4Gyp1FspeMvx1RNDoToZuM=
 github.com/philhofer/fwd v1.2.0/go.mod h1:RqIHx9QI14HlwKwm98g9Re5prTQ6LdeRQn+gXJFxsJM=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
