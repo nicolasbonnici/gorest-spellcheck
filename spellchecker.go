@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/sajari/fuzzy"
@@ -19,10 +20,25 @@ type Spellchecker struct {
 	maxSuggestions int
 }
 
-// NewSpellchecker creates a new spellchecker with the given configuration
-func NewSpellchecker(config *Config) (*Spellchecker, error) {
-	model := fuzzy.NewModel()
+// modelCache memoizes trained fuzzy models keyed by custom-dictionary path.
+// Training the dictionary is by far the most expensive part of constructing a
+// Spellchecker, and a trained model is read-only afterwards (fuzzy guards
+// lookups with an RWMutex), so a single model can be shared safely across
+// every checker — including the per-request checkers derived in the handler.
+var (
+	modelCacheMu sync.Mutex
+	modelCache   = map[string]*fuzzy.Model{}
+)
 
+func loadModel(customDictionary string) (*fuzzy.Model, error) {
+	modelCacheMu.Lock()
+	defer modelCacheMu.Unlock()
+
+	if model, ok := modelCache[customDictionary]; ok {
+		return model, nil
+	}
+
+	model := fuzzy.NewModel()
 	model.SetDepth(4)
 	model.SetThreshold(1)
 
@@ -30,29 +46,74 @@ func NewSpellchecker(config *Config) (*Spellchecker, error) {
 		return nil, err
 	}
 
-	if config.CustomDictionary != "" {
-		if err := loadDictionaryFromFile(model, config.CustomDictionary); err != nil {
+	if customDictionary != "" {
+		if err := loadDictionaryFromFile(model, customDictionary); err != nil {
 			return nil, err
 		}
 	}
 
-	ignoredWords := make(map[string]bool)
-	for _, word := range config.IgnoredWords {
-		if config.CaseSensitive {
-			ignoredWords[word] = true
-		} else {
-			ignoredWords[strings.ToLower(word)] = true
-		}
+	modelCache[customDictionary] = model
+	return model, nil
+}
+
+// NewSpellchecker creates a new spellchecker with the given configuration
+func NewSpellchecker(config *Config) (*Spellchecker, error) {
+	model, err := loadModel(config.CustomDictionary)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Spellchecker{
 		model:          model,
 		config:         config,
-		ignoredWords:   ignoredWords,
+		ignoredWords:   buildIgnoredWords(config.IgnoredWords, config.CaseSensitive),
 		caseSensitive:  config.CaseSensitive,
 		minWordLength:  config.MinWordLength,
 		maxSuggestions: config.MaxSuggestions,
 	}, nil
+}
+
+func buildIgnoredWords(words []string, caseSensitive bool) map[string]bool {
+	ignored := make(map[string]bool, len(words))
+	for _, word := range words {
+		if caseSensitive {
+			ignored[word] = true
+		} else {
+			ignored[strings.ToLower(word)] = true
+		}
+	}
+	return ignored
+}
+
+// derive returns a lightweight checker sharing this checker's trained model but
+// with per-request overrides applied. It exists so on-demand requests carrying
+// context words or options don't pay to retrain the dictionary; the model is
+// identical, only the ignore set and scalar options differ.
+func (s *Spellchecker) derive(contextWords []string, caseSensitive *bool, maxSuggestions *int) *Spellchecker {
+	cs := s.caseSensitive
+	if caseSensitive != nil {
+		cs = *caseSensitive
+	}
+
+	ms := s.maxSuggestions
+	if maxSuggestions != nil {
+		ms = *maxSuggestions
+	}
+
+	// Rekey the ignore set to the effective case sensitivity so results match
+	// what NewSpellchecker would have produced for the merged config.
+	merged := make([]string, 0, len(s.config.IgnoredWords)+len(contextWords))
+	merged = append(merged, s.config.IgnoredWords...)
+	merged = append(merged, contextWords...)
+
+	return &Spellchecker{
+		model:          s.model,
+		config:         s.config,
+		ignoredWords:   buildIgnoredWords(merged, cs),
+		caseSensitive:  cs,
+		minWordLength:  s.minWordLength,
+		maxSuggestions: ms,
+	}
 }
 
 // Check checks the spelling of the given text and returns any errors found
@@ -65,9 +126,16 @@ func (s *Spellchecker) Check(text string) (*SpellingErrors, error) {
 	}
 
 	errors := &SpellingErrors{}
-	words := s.extractWords(text)
 
-	for _, wordInfo := range words {
+	st := checkStatePool.Get().(*checkState)
+	defer func() {
+		st.words = st.words[:0]
+		checkStatePool.Put(st)
+	}()
+
+	st.words = s.extractWordsInto(text, st.words)
+
+	for _, wordInfo := range st.words {
 		word := wordInfo.word
 		position := wordInfo.position
 
@@ -87,14 +155,18 @@ func (s *Spellchecker) Check(text string) (*SpellingErrors, error) {
 			continue
 		}
 
-		if !s.isCorrect(word) {
-			suggestions := s.getSuggestions(word)
-			errors.Add(&SpellingError{
-				Word:        word,
-				Position:    position,
-				Suggestions: suggestions,
-			})
+		// One SpellCheck round-trip decides correctness and seeds the
+		// suggestion list, halving model lookups for misspelled words.
+		correction := string(s.model.SpellCheck(checkWord))
+		if correction == "" || correction == checkWord {
+			continue
 		}
+
+		errors.Add(&SpellingError{
+			Word:        word,
+			Position:    position,
+			Suggestions: s.buildSuggestions(word, checkWord, correction),
+		})
 	}
 
 	return errors, nil
@@ -114,23 +186,6 @@ func (s *Spellchecker) CheckField(fieldName, text string) (*SpellingErrors, erro
 	return errors, nil
 }
 
-// isCorrect checks if a word is spelled correctly
-func (s *Spellchecker) isCorrect(word string) bool {
-	checkWord := word
-	if !s.caseSensitive {
-		checkWord = strings.ToLower(word)
-	}
-
-	correction := s.model.SpellCheck(checkWord)
-	correctionStr := string(correction)
-
-	if correctionStr == "" || correctionStr == checkWord {
-		return true
-	}
-
-	return false
-}
-
 // getSuggestions returns spelling suggestions for a misspelled word
 func (s *Spellchecker) getSuggestions(word string) []string {
 	checkWord := word
@@ -138,9 +193,12 @@ func (s *Spellchecker) getSuggestions(word string) []string {
 		checkWord = strings.ToLower(word)
 	}
 
-	correction := s.model.SpellCheck(checkWord)
-	correctionStr := string(correction)
+	return s.buildSuggestions(word, checkWord, string(s.model.SpellCheck(checkWord)))
+}
 
+// buildSuggestions assembles the ranked suggestion list from an already-computed
+// correction, so callers that have run SpellCheck don't repeat it.
+func (s *Spellchecker) buildSuggestions(word, checkWord, correctionStr string) []string {
 	var filtered []string
 	if correctionStr != "" && correctionStr != checkWord {
 		filtered = append(filtered, correctionStr)
@@ -180,38 +238,44 @@ type wordInfo struct {
 	position int
 }
 
+// checkState carries the reusable per-Check scratch buffer. Pooling it keeps the
+// word slice off the hot-path allocator; each Check owns its instance for the
+// duration of the call, so reuse stays race-free.
+type checkState struct {
+	words []wordInfo
+}
+
+var checkStatePool = sync.Pool{
+	New: func() any {
+		return &checkState{words: make([]wordInfo, 0, 64)}
+	},
+}
+
 // extractWords extracts words from text with their positions
 func (s *Spellchecker) extractWords(text string) []wordInfo {
-	// Pre-allocate slice with estimated capacity (rough estimate: 1 word per 6 chars)
-	estimatedWords := len(text)/6 + 1
-	words := make([]wordInfo, 0, estimatedWords)
-	var currentWord strings.Builder
+	return s.extractWordsInto(text, nil)
+}
+
+// extractWordsInto appends extracted words into buf, reusing its capacity. Word
+// strings are sub-slices of text rather than freshly built, avoiding a copy per
+// word; the shared backing array is immutable so this is safe to retain.
+func (s *Spellchecker) extractWordsInto(text string, buf []wordInfo) []wordInfo {
+	words := buf[:0]
 	wordStart := -1
 
 	for i, r := range text {
 		if unicode.IsLetter(r) || r == '\'' || r == '-' {
-			if currentWord.Len() == 0 {
+			if wordStart < 0 {
 				wordStart = i
 			}
-			currentWord.WriteRune(r)
-		} else {
-			if currentWord.Len() > 0 {
-				words = append(words, wordInfo{
-					word:     currentWord.String(),
-					position: wordStart,
-				})
-				currentWord.Reset()
-				wordStart = -1
-			}
+		} else if wordStart >= 0 {
+			words = append(words, wordInfo{word: text[wordStart:i], position: wordStart})
+			wordStart = -1
 		}
 	}
 
-	// Don't forget the last word if text doesn't end with punctuation
-	if currentWord.Len() > 0 {
-		words = append(words, wordInfo{
-			word:     currentWord.String(),
-			position: wordStart,
-		})
+	if wordStart >= 0 {
+		words = append(words, wordInfo{word: text[wordStart:], position: wordStart})
 	}
 
 	return words
@@ -233,12 +297,13 @@ func loadEnglishDictionary(model *fuzzy.Model) error {
 
 	model.Train(commonWords)
 
+	capitalized := make([]string, 0, len(commonWords))
 	for _, word := range commonWords {
 		if len(word) > 0 {
-			capitalized := strings.ToUpper(word[:1]) + word[1:]
-			model.Train([]string{capitalized})
+			capitalized = append(capitalized, strings.ToUpper(word[:1])+word[1:])
 		}
 	}
+	model.Train(capitalized)
 
 	return nil
 }

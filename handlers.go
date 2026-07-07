@@ -58,36 +58,17 @@ func (h *Handler) Check(c fiber.Ctx) error {
 		}
 	}
 
-	// Create a temporary spellchecker with context words if provided
+	// Per-request context/options never change the dictionary, so derive a
+	// lightweight checker that shares the trained model instead of retraining.
 	checker := h.spellchecker
 	if len(req.Context) > 0 || req.Options != nil {
-		// Create modified config
-		tempConfig := *h.config
-
-		// Add context words to ignored words
-		if len(req.Context) > 0 {
-			tempConfig.IgnoredWords = append(tempConfig.IgnoredWords, req.Context...)
-		}
-
-		// Apply options
+		var caseSensitive *bool
+		var maxSuggestions *int
 		if req.Options != nil {
-			if req.Options.CaseSensitive != nil {
-				tempConfig.CaseSensitive = *req.Options.CaseSensitive
-			}
-			if req.Options.MaxSuggestions != nil {
-				tempConfig.MaxSuggestions = *req.Options.MaxSuggestions
-			}
+			caseSensitive = req.Options.CaseSensitive
+			maxSuggestions = req.Options.MaxSuggestions
 		}
-
-		// Create temporary checker
-		var err error
-		checker, err = NewSpellchecker(&tempConfig)
-		if err != nil {
-			logger.Log.Error("Failed to create temporary spellchecker", "error", err)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Failed to initialize spell checker",
-			})
-		}
+		checker = h.spellchecker.derive(req.Context, caseSensitive, maxSuggestions)
 	}
 
 	// Check spelling
