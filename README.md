@@ -1,7 +1,8 @@
 # GoREST Spellcheck Plugin
 
 [![CI](https://github.com/nicolasbonnici/gorest-spellcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/nicolasbonnici/gorest-spellcheck/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/nicolasbonnici/gorest-spellcheck)](https://goreportcard.com/report/github.com/nicolasbonnici/gorest-spellcheck)
+[![Go Reference](https://pkg.go.dev/badge/github.com/nicolasbonnici/gorest-spellcheck.svg)](https://pkg.go.dev/github.com/nicolasbonnici/gorest-spellcheck)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/nicolasbonnici/gorest-spellcheck)](https://github.com/nicolasbonnici/gorest-spellcheck/blob/HEAD/go.mod)
 [![Coverage](https://img.shields.io/badge/coverage-82.6%25-brightgreen)](https://github.com/nicolasbonnici/gorest-spellcheck)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
