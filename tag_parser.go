@@ -29,7 +29,7 @@ func NewTagParser() *TagParser {
 func (p *TagParser) Parse(v interface{}) []FieldInfo {
 	t := reflect.TypeOf(v)
 
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -52,7 +52,7 @@ func (p *TagParser) Parse(v interface{}) []FieldInfo {
 func (p *TagParser) ParseValue(v reflect.Value) []FieldInfo {
 	t := v.Type()
 
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -113,7 +113,7 @@ func (p *TagParser) parseStruct(t reflect.Type) []FieldInfo {
 func (p *TagParser) GetFieldValue(v interface{}, fieldName string) (string, bool) {
 	val := reflect.ValueOf(v)
 
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		val = val.Elem()
 	}
 
