@@ -20,7 +20,7 @@ env:
 
 jobs:
   quality:
-    name: Go Report Card Quality Checks
+    name: Quality Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
