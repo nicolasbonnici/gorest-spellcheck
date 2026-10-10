@@ -16,8 +16,8 @@ github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsRe
 github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
 github.com/molecule-man/go-brrr v1.2.0 h1:dOJU45BC3Gc2WXoxAW0rgCAgVuu2gruAOGncfieA0Jw=
 github.com/molecule-man/go-brrr v1.2.0/go.mod h1:7ybW6/7gA3oKY45jOfVNjSJDtrr6ea4tzbsTkjmQDC4=
-github.com/nicolasbonnici/gorest v0.7.2 h1:SsgSOH2HKan92KmWwM5tCLpwfhp8+1j/9aWJvqwQqEE=
-github.com/nicolasbonnici/gorest v0.7.2/go.mod h1:LWBad627fugSi4cbEq/Ok731kfGkguKEowETyuI5GjM=
+github.com/nicolasbonnici/gorest v0.7.3 h1:Uw5jarnZ+tIstK8hE5zSOduR4KzMWxZXmqkMJEKoxpE=
+github.com/nicolasbonnici/gorest v0.7.3/go.mod h1:LYfRYRy/ItEhdJJ6DvjL8IcpEH04IH9RTTVk63yhjUQ=
 github.com/philhofer/fwd v1.2.0 h1:e6DnBTl7vGY+Gz322/ASL4Gyp1FspeMvx1RNDoToZuM=
 github.com/philhofer/fwd v1.2.0/go.mod h1:RqIHx9QI14HlwKwm98g9Re5prTQ6LdeRQn+gXJFxsJM=
 github.com/sajari/fuzzy v1.0.0 h1:+FmwVvJErsd0d0hAPlj4CxqxUtQY/fOoY0DwX4ykpRY=
